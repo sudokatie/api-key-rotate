@@ -1,4 +1,31 @@
+# Binaries
 bin/
-*.db
-.env*
-!.env.example
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (usually vendored or downloaded)
+vendor/
+
+# Local config (user-specific)
+config.local.yaml
