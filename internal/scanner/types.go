@@ -33,3 +33,10 @@ type KeyPattern struct {
 	Pattern  string // Regex pattern
 	Provider string // Associated provider
 }
+
+// LocalLocation represents a key location in a local file
+type LocalLocation struct {
+	Path  string
+	Line  int
+	Value string
+}
