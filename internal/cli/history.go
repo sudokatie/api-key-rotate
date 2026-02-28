@@ -46,11 +46,7 @@ func init() {
 }
 
 func runHistory(cmd *cobra.Command, args []string) error {
-	// Initialize audit database if not already done
-	if err := audit.Init(""); err != nil {
-		return fmt.Errorf("failed to open audit log: %w", err)
-	}
-
+	// Audit DB is initialized in PersistentPreRunE
 	// Build query options
 	opts := audit.QueryOptions{
 		KeyName: historyKey,

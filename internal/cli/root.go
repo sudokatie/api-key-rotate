@@ -6,6 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/sudokatie/api-key-rotate/internal/audit"
 	"github.com/sudokatie/api-key-rotate/internal/config"
 )
 
@@ -65,6 +66,21 @@ Run 'api-key-rotate <KEY_NAME>' to rotate it (dry run by default).`,
 
 		if noColor {
 			color.NoColor = true
+		}
+
+		// Initialize audit database and purge old entries (spec 7.2)
+		if err := audit.Init(config.Cfg.Audit.Path); err != nil {
+			if verbose {
+				fmt.Fprintf(os.Stderr, "Warning: audit log unavailable: %v\n", err)
+			}
+			// Non-fatal - continue without audit
+		} else {
+			// Purge entries older than retention period on startup
+			if err := audit.PurgeOldEntries(config.Cfg.Audit.RetentionDays); err != nil {
+				if verbose {
+					fmt.Fprintf(os.Stderr, "Warning: failed to purge old audit entries: %v\n", err)
+				}
+			}
 		}
 
 		return nil
