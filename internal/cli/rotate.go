@@ -19,8 +19,8 @@ var (
 	rotateExecute   bool
 	rotateNewKey    string
 	rotateForce     bool
-	rotateLocalOnly bool
-	rotateCloudOnly bool
+	rotateSkipLocal bool
+	rotateSkipCloud bool
 	rotateLocations []string
 	rotateExclude   []string
 	rotateFormat    string
@@ -38,7 +38,7 @@ Examples:
   api-key-rotate rotate OPENAI_API_KEY                    # Dry run
   api-key-rotate rotate OPENAI_API_KEY --execute          # Execute
   api-key-rotate rotate STRIPE_KEY --new-key=sk_live_xxx  # Provide new key
-  api-key-rotate rotate DB_URL --local-only --force       # Skip confirmation`,
+  api-key-rotate rotate DB_URL --skip-cloud --force       # Local only, skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRotate,
 }
@@ -47,8 +47,8 @@ func init() {
 	rotateCmd.Flags().BoolVarP(&rotateExecute, "execute", "e", false, "actually perform the rotation")
 	rotateCmd.Flags().StringVar(&rotateNewKey, "new-key", "", "new key value (prompted if not provided)")
 	rotateCmd.Flags().BoolVarP(&rotateForce, "force", "f", false, "skip confirmation prompt")
-	rotateCmd.Flags().BoolVar(&rotateLocalOnly, "local-only", false, "only update local files")
-	rotateCmd.Flags().BoolVar(&rotateCloudOnly, "cloud-only", false, "only update cloud providers")
+	rotateCmd.Flags().BoolVar(&rotateSkipLocal, "skip-local", false, "skip local file updates")
+	rotateCmd.Flags().BoolVar(&rotateSkipCloud, "skip-cloud", false, "skip cloud provider updates")
 	rotateCmd.Flags().StringSliceVar(&rotateLocations, "locations", nil, "only update specific locations")
 	rotateCmd.Flags().StringSliceVar(&rotateExclude, "exclude", nil, "exclude specific locations")
 	rotateCmd.Flags().StringVar(&rotateFormat, "format", "text", "output format (text, json, table)")
@@ -67,7 +67,7 @@ func runRotate(cmd *cobra.Command, args []string) error {
 
 	if len(locations) == 0 {
 		fmt.Fprintf(os.Stderr, "Key %q not found in any location.\n", keyName)
-		os.Exit(4)
+		os.Exit(ExitKeyNotFound)
 	}
 
 	// Filter locations
@@ -123,7 +123,11 @@ func runRotate(cmd *cobra.Command, args []string) error {
 		if tx != nil {
 			printTransactionSummary(tx)
 		}
-		os.Exit(5)
+		// Check if rollback failed (critical)
+		if strings.Contains(err.Error(), "rollback also failed") {
+			os.Exit(ExitRollbackFailed)
+		}
+		os.Exit(ExitRotationFailed)
 	}
 
 	fmt.Println(formatter.Result(true, fmt.Sprintf("Rotated %s in %d locations", keyName, tx.SuccessCount())))
@@ -136,8 +140,8 @@ func runRotate(cmd *cobra.Command, args []string) error {
 func gatherLocations(keyName string) ([]providers.Location, error) {
 	var allLocations []providers.Location
 
-	// Scan local files
-	if !rotateCloudOnly {
+	// Scan local files (unless --skip-local is set)
+	if !rotateSkipLocal {
 		locals, err := findLocalLocations(keyName)
 		if err != nil && verbose {
 			fmt.Fprintf(os.Stderr, "Warning: local scan error: %v\n", err)
@@ -145,8 +149,8 @@ func gatherLocations(keyName string) ([]providers.Location, error) {
 		allLocations = append(allLocations, locals...)
 	}
 
-	// Check cloud providers
-	if !rotateLocalOnly {
+	// Check cloud providers (unless --skip-cloud is set)
+	if !rotateSkipCloud {
 		cloudLocs := findCloudLocations(keyName)
 		allLocations = append(allLocations, cloudLocs...)
 	}

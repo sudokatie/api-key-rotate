@@ -63,7 +63,7 @@ func runFind(cmd *cobra.Command, args []string) error {
 	// Output results
 	if len(allLocations) == 0 {
 		fmt.Fprintf(os.Stderr, "Key %q not found in any location.\n", keyName)
-		os.Exit(4) // Exit code for key not found
+		os.Exit(ExitKeyNotFound)
 	}
 
 	formatter := output.New(findFormat, !noColor, true)

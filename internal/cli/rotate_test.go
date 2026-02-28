@@ -131,8 +131,8 @@ func TestRotateCmd_Flags(t *testing.T) {
 	assert.NotNil(t, flags.Lookup("execute"))
 	assert.NotNil(t, flags.Lookup("new-key"))
 	assert.NotNil(t, flags.Lookup("force"))
-	assert.NotNil(t, flags.Lookup("local-only"))
-	assert.NotNil(t, flags.Lookup("cloud-only"))
+	assert.NotNil(t, flags.Lookup("skip-local"))
+	assert.NotNil(t, flags.Lookup("skip-cloud"))
 	assert.NotNil(t, flags.Lookup("locations"))
 	assert.NotNil(t, flags.Lookup("exclude"))
 	assert.NotNil(t, flags.Lookup("format"))
@@ -149,4 +149,35 @@ func TestRotateCmd_ShortFlags(t *testing.T) {
 	forceFlag := flags.ShorthandLookup("f")
 	assert.NotNil(t, forceFlag)
 	assert.Equal(t, "force", forceFlag.Name)
+}
+
+func TestExitCodes(t *testing.T) {
+	// Verify exit codes match spec
+	assert.Equal(t, 0, ExitSuccess)
+	assert.Equal(t, 1, ExitGeneralError)
+	assert.Equal(t, 2, ExitConfigError)
+	assert.Equal(t, 3, ExitProviderError)
+	assert.Equal(t, 4, ExitKeyNotFound)
+	assert.Equal(t, 5, ExitRotationFailed)
+	assert.Equal(t, 6, ExitRollbackFailed)
+}
+
+func TestRootCmd_AcceptsKeyName(t *testing.T) {
+	// Verify root command is configured to accept optional key name
+	assert.Equal(t, "api-key-rotate [KEY_NAME]", rootCmd.Use)
+	assert.NotNil(t, rootCmd.RunE)
+}
+
+func TestRootCmd_RotateFlags(t *testing.T) {
+	// Verify root command has rotate flags for direct key name usage
+	flags := rootCmd.Flags()
+
+	assert.NotNil(t, flags.Lookup("execute"))
+	assert.NotNil(t, flags.Lookup("new-key"))
+	assert.NotNil(t, flags.Lookup("force"))
+	assert.NotNil(t, flags.Lookup("skip-local"))
+	assert.NotNil(t, flags.Lookup("skip-cloud"))
+	assert.NotNil(t, flags.Lookup("locations"))
+	assert.NotNil(t, flags.Lookup("exclude"))
+	assert.NotNil(t, flags.Lookup("format"))
 }

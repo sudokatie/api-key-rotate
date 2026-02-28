@@ -265,7 +265,7 @@ func runProvidersTest(cmd *cobra.Command, args []string) error {
 	}
 
 	if !success {
-		os.Exit(3) // Provider error exit code
+		os.Exit(ExitProviderError)
 	}
 
 	return nil

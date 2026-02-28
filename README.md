@@ -66,7 +66,8 @@ api-key-rotate rotate MY_KEY --execute --new-key="sk_live_xxx"
 api-key-rotate rotate MY_KEY --execute --force
 
 # Filter locations
-api-key-rotate rotate MY_KEY --execute --local-only
+api-key-rotate rotate MY_KEY --execute --skip-cloud
+api-key-rotate rotate MY_KEY --execute --skip-local
 api-key-rotate rotate MY_KEY --execute --locations="project-a,production"
 api-key-rotate rotate MY_KEY --execute --exclude="staging"
 ```
