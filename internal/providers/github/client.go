@@ -7,20 +7,26 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/sudokatie/api-key-rotate/internal/providers"
 )
 
 // Client handles GitHub API communication
 type Client struct {
 	token string
-	http  *http.Client
+	http  *providers.RetryableHTTPClient
 	base  string
 }
 
 // NewClient creates a new GitHub API client
 func NewClient(token string) *Client {
+	cfg := providers.DefaultRetryConfig()
+	// GitHub rate limit varies, use reasonable backoff
+	cfg.InitialBackoff = 2 * time.Second
+
 	return &Client{
 		token: token,
-		http:  &http.Client{Timeout: 30 * time.Second},
+		http:  providers.NewRetryableClient(30*time.Second, cfg),
 		base:  "https://api.github.com",
 	}
 }
@@ -60,14 +66,20 @@ func (c *Client) ListUserRepos() ([]Repo, error) {
 
 	for {
 		url := fmt.Sprintf("%s/user/repos?per_page=100&page=%d", c.base, page)
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := c.newRequest("GET", url, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := c.do(req)
+		resp, err := c.http.Do(req)
 		if err != nil {
 			return nil, err
+		}
+
+		if resp.StatusCode >= 400 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 		}
 
 		var repos []Repo
@@ -95,14 +107,20 @@ func (c *Client) ListOrgRepos(org string) ([]Repo, error) {
 
 	for {
 		url := fmt.Sprintf("%s/orgs/%s/repos?per_page=100&page=%d", c.base, org, page)
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := c.newRequest("GET", url, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := c.do(req)
+		resp, err := c.http.Do(req)
 		if err != nil {
 			return nil, err
+		}
+
+		if resp.StatusCode >= 400 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 		}
 
 		var repos []Repo
@@ -127,16 +145,26 @@ func (c *Client) ListOrgRepos(org string) ([]Repo, error) {
 func (c *Client) ListSecrets(owner, repo string) ([]Secret, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/actions/secrets", c.base, owner, repo)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := c.newRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	// 404 means no secrets or no access - return empty
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	}
 
 	var result secretsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -150,16 +178,21 @@ func (c *Client) ListSecrets(owner, repo string) ([]Secret, error) {
 func (c *Client) GetPublicKey(owner, repo string) (*PublicKey, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/actions/secrets/public-key", c.base, owner, repo)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := c.newRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	}
 
 	var key PublicKey
 	if err := json.NewDecoder(resp.Body).Decode(&key); err != nil {
@@ -178,12 +211,12 @@ func (c *Client) UpdateSecret(owner, repo, secretName, encryptedValue, keyID str
 		"key_id":          keyID,
 	})
 
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
+	req, err := c.newRequest("PUT", url, body)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
@@ -198,28 +231,28 @@ func (c *Client) UpdateSecret(owner, repo, secretName, encryptedValue, keyID str
 	return nil
 }
 
-func (c *Client) do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+// newRequest creates a new HTTP request with auth headers
+func (c *Client) newRequest(method, url string, body []byte) (*http.Request, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
 
-	resp, err := c.http.Do(req)
+	req, err := http.NewRequest(method, url, bodyReader)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode == 429 {
-		// Rate limited - wait and retry
-		resp.Body.Close()
-		time.Sleep(5 * time.Second)
-		return c.http.Do(req)
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	// Set GetBody for retry support
+	if body != nil {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
 	}
 
-	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
-	}
-
-	return resp, nil
+	return req, nil
 }

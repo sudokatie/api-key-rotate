@@ -151,6 +151,12 @@ audit:
 api-key-rotate providers add vercel
 ```
 
+Or use environment variable:
+
+```bash
+export VERCEL_TOKEN=your-token
+```
+
 ### GitHub
 
 1. Create a PAT with `repo` scope at https://github.com/settings/tokens
@@ -158,6 +164,20 @@ api-key-rotate providers add vercel
 
 ```bash
 api-key-rotate providers add github
+```
+
+Or use environment variable:
+
+```bash
+export GITHUB_TOKEN=your-token
+```
+
+### Token Priority
+
+Environment variables take precedence over keychain. This makes it easy to use in CI/CD:
+
+```bash
+VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN }} api-key-rotate find MY_KEY
 ```
 
 ## How It Works
@@ -168,13 +188,20 @@ api-key-rotate providers add github
 4. **Rollback** - If any update fails, reverts all successful changes
 5. **Audit** - Logs the rotation to SQLite for history tracking
 
+## Reliability
+
+- Automatic retry on rate limits (429) with exponential backoff
+- Automatic retry on server errors (5xx) up to 3 times
+- Atomic file writes prevent corruption
+- Full rollback on any failure
+
 ## Security
 
 - Provider tokens stored in system keychain (not in config files)
+- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`)
 - New key values prompted without echo (like passwords)
 - Backup files have 0600 permissions
 - Audit log never stores full key values (only previews like `sk_l****`)
-- Atomic file writes prevent corruption
 
 ## Exit Codes
 

@@ -7,20 +7,26 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/sudokatie/api-key-rotate/internal/providers"
 )
 
 // Client handles Vercel API communication
 type Client struct {
 	token string
-	http  *http.Client
+	http  *providers.RetryableHTTPClient
 	base  string
 }
 
 // NewClient creates a new Vercel API client
 func NewClient(token string) *Client {
+	cfg := providers.DefaultRetryConfig()
+	// Vercel rate limit is 100/min, so reasonable backoff
+	cfg.InitialBackoff = 2 * time.Second
+
 	return &Client{
 		token: token,
-		http:  &http.Client{Timeout: 30 * time.Second},
+		http:  providers.NewRetryableClient(30*time.Second, cfg),
 		base:  "https://api.vercel.com",
 	}
 }
@@ -59,21 +65,28 @@ func (c *Client) ListProjects() ([]Project, error) {
 
 	url := c.base + "/v9/projects?limit=100"
 	for url != "" {
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := c.newRequest("GET", url, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := c.do(req)
+		resp, err := c.http.Do(req)
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		}
 
 		var result projectsResponse
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
 			return nil, err
 		}
+		resp.Body.Close()
 
 		allProjects = append(allProjects, result.Projects...)
 
@@ -92,16 +105,21 @@ func (c *Client) ListProjects() ([]Project, error) {
 func (c *Client) GetEnvVars(projectID string) ([]EnvVar, error) {
 	url := fmt.Sprintf("%s/v10/projects/%s/env", c.base, projectID)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := c.newRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	}
 
 	var result envsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -116,12 +134,12 @@ func (c *Client) UpdateEnvVar(projectID, envID string, value string) error {
 	url := fmt.Sprintf("%s/v10/projects/%s/env/%s", c.base, projectID, envID)
 
 	body, _ := json.Marshal(map[string]string{"value": value})
-	req, err := http.NewRequest("PATCH", url, bytes.NewReader(body))
+	req, err := c.newRequest("PATCH", url, body)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
@@ -135,27 +153,27 @@ func (c *Client) UpdateEnvVar(projectID, envID string, value string) error {
 	return nil
 }
 
-func (c *Client) do(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json")
+// newRequest creates a new HTTP request with auth headers
+func (c *Client) newRequest(method, url string, body []byte) (*http.Request, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
 
-	resp, err := c.http.Do(req)
+	req, err := http.NewRequest(method, url, bodyReader)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode == 429 {
-		// Rate limited - wait and retry once
-		resp.Body.Close()
-		time.Sleep(2 * time.Second)
-		return c.http.Do(req)
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set GetBody for retry support
+	if body != nil {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
 	}
 
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
-	}
-
-	return resp, nil
+	return req, nil
 }
