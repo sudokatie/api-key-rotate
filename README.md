@@ -172,6 +172,23 @@ Or use environment variable:
 export GITHUB_TOKEN=your-token
 ```
 
+### Railway
+
+1. Create a token at https://railway.app/account/tokens
+2. Add it:
+
+```bash
+api-key-rotate providers add railway
+```
+
+Or use environment variable:
+
+```bash
+export RAILWAY_TOKEN=your-token
+```
+
+Railway scans all projects and environments for environment variables.
+
 ### Token Priority
 
 Environment variables take precedence over keychain. This makes it easy to use in CI/CD:
