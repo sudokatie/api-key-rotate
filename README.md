@@ -206,6 +206,23 @@ export SUPABASE_ACCESS_TOKEN=your-token
 
 Supabase scans all active projects for edge function secrets. Paused projects are skipped.
 
+### Render
+
+1. Create an API key at https://render.com/docs/api#creating-an-api-key
+2. Add it:
+
+```bash
+api-key-rotate providers add render
+```
+
+Or use environment variable:
+
+```bash
+export RENDER_API_KEY=your-api-key
+```
+
+Render scans all services (web services, background workers, etc.) for environment variables.
+
 ### Token Priority
 
 Environment variables take precedence over keychain. This makes it easy to use in CI/CD:
@@ -232,7 +249,7 @@ VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN }} api-key-rotate find MY_KEY
 ## Security
 
 - Provider tokens stored in system keychain (not in config files)
-- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`, `RAILWAY_TOKEN`, `SUPABASE_ACCESS_TOKEN`)
+- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`, `RAILWAY_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `RENDER_API_KEY`)
 - New key values prompted without echo (like passwords)
 - Backup files have 0600 permissions
 - Audit log never stores full key values (only previews like `sk_l****`)

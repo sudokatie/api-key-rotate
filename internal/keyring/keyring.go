@@ -15,6 +15,7 @@ var envVarNames = map[string]string{
 	"github":   "GITHUB_TOKEN",
 	"railway":  "RAILWAY_TOKEN",
 	"supabase": "SUPABASE_ACCESS_TOKEN",
+	"render":   "RENDER_API_KEY",
 }
 
 // Set stores a token for a provider in the system keychain
