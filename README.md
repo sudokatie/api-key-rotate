@@ -189,6 +189,23 @@ export RAILWAY_TOKEN=your-token
 
 Railway scans all projects and environments for environment variables.
 
+### Supabase
+
+1. Create an access token at https://supabase.com/dashboard/account/tokens
+2. Add it:
+
+```bash
+api-key-rotate providers add supabase
+```
+
+Or use environment variable:
+
+```bash
+export SUPABASE_ACCESS_TOKEN=your-token
+```
+
+Supabase scans all active projects for edge function secrets. Paused projects are skipped.
+
 ### Token Priority
 
 Environment variables take precedence over keychain. This makes it easy to use in CI/CD:
@@ -215,7 +232,7 @@ VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN }} api-key-rotate find MY_KEY
 ## Security
 
 - Provider tokens stored in system keychain (not in config files)
-- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`)
+- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`, `RAILWAY_TOKEN`, `SUPABASE_ACCESS_TOKEN`)
 - New key values prompted without echo (like passwords)
 - Backup files have 0600 permissions
 - Audit log never stores full key values (only previews like `sk_l****`)

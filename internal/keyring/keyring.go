@@ -11,8 +11,10 @@ const serviceName = "api-key-rotate"
 
 // envVarNames maps provider names to their environment variable names
 var envVarNames = map[string]string{
-	"vercel": "VERCEL_TOKEN",
-	"github": "GITHUB_TOKEN",
+	"vercel":   "VERCEL_TOKEN",
+	"github":   "GITHUB_TOKEN",
+	"railway":  "RAILWAY_TOKEN",
+	"supabase": "SUPABASE_ACCESS_TOKEN",
 }
 
 // Set stores a token for a provider in the system keychain
