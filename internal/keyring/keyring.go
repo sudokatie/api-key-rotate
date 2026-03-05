@@ -16,6 +16,7 @@ var envVarNames = map[string]string{
 	"railway":  "RAILWAY_TOKEN",
 	"supabase": "SUPABASE_ACCESS_TOKEN",
 	"render":   "RENDER_API_KEY",
+	"flyio":    "FLY_API_TOKEN",
 }
 
 // Set stores a token for a provider in the system keychain

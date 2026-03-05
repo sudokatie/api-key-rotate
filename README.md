@@ -223,6 +223,23 @@ export RENDER_API_KEY=your-api-key
 
 Render scans all services (web services, background workers, etc.) for environment variables.
 
+### Fly.io
+
+1. Create an access token with `fly tokens create`
+2. Add it:
+
+```bash
+api-key-rotate providers add flyio
+```
+
+Or use environment variable:
+
+```bash
+export FLY_API_TOKEN=your-token
+```
+
+Fly.io scans all apps for secrets. Note: Fly.io does not expose secret values via API for security, so rollback is not supported unless you have the original value stored externally.
+
 ### Token Priority
 
 Environment variables take precedence over keychain. This makes it easy to use in CI/CD:
@@ -249,7 +266,7 @@ VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN }} api-key-rotate find MY_KEY
 ## Security
 
 - Provider tokens stored in system keychain (not in config files)
-- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`, `RAILWAY_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `RENDER_API_KEY`)
+- Environment variables supported for CI/CD (`VERCEL_TOKEN`, `GITHUB_TOKEN`, `RAILWAY_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `RENDER_API_KEY`, `FLY_API_TOKEN`)
 - New key values prompted without echo (like passwords)
 - Backup files have 0600 permissions
 - Audit log never stores full key values (only previews like `sk_l****`)
